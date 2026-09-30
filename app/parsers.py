@@ -4,7 +4,10 @@ from .schemas import ScannedPlayer
 
 GAMES = {"VALORANT", "LOL", "CODM", "MLBB"}
 
-KDA_RE = re.compile(r"(\d{1,3})\s*/\s*(\d{1,3})\s*/\s*(\d{1,3})")
+DIGIT_LOOKALIKES = str.maketrans("OoIlSBZ", "0011582")
+KDA_RE = re.compile(
+    r"([\dOoIlSBZ]{1,3})\s*/\s*([\dOoIlSBZ]{1,3})\s*/\s*([\dOoIlSBZ]{1,3})"
+)
 NON_PLAYER_LABELS = {"team1", "team2", "team", "total", "mvp"}
 
 
@@ -57,13 +60,16 @@ def _parse_kda_columns(game, items, tol):
             ign = min(names, key=lambda n: _ycenter(n[0]))[1]
         else:
             ign = max(names, key=lambda n: _xleft(n[0]))[1]
+        kills, deaths, assists = (
+            int(group.translate(DIGIT_LOOKALIKES)) for group in match.groups()
+        )
         players.append(
             ScannedPlayer(
                 ign=ign.strip(),
                 team=None,
-                kills=int(match.group(1)),
-                deaths=int(match.group(2)),
-                assists=int(match.group(3)),
+                kills=kills,
+                deaths=deaths,
+                assists=assists,
                 extra={},
             )
         )

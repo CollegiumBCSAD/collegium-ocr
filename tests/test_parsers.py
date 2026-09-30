@@ -48,7 +48,7 @@ def test_codm_splits_side_by_side_tables():
         (box(297, 373, 369, 402), "400", 0.99),
         (box(642, 348, 732, 379), "41/20/12", 0.99),
         (box(1214, 328, 1295, 360), "SY Josh.", 0.95),
-        (box(1596, 346, 1689, 381), "23/32/8", 0.99),
+        (box(1596, 346, 1689, 381), "23/32/B", 0.99),
     ]
     players = parse("CODM", items)
     assert [p.ign for p in players] == ["ARDE Law", "SY Josh."]
