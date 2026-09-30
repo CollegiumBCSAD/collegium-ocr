@@ -5,8 +5,9 @@ JSON. It is called by `collegium-server`'s `scanMatch` endpoint to pre-fill play
 when an organizer closes a tournament match, so an organizer can confirm or correct the
 numbers instead of transcribing them by hand.
 
-Valorant and League of Legends scoreboards are supported today. Call of Duty: Mobile
-and Mobile Legends are not — see [Notes and known limitations](#notes-and-known-limitations).
+Valorant, League of Legends, Call of Duty: Mobile and Mobile Legends scoreboards are
+all supported — see [Notes and known limitations](#notes-and-known-limitations) for the
+rough edges that remain.
 
 The OCR reader is [RapidOCR](https://github.com/RapidAI/RapidOCR), running on the ONNX
 Runtime. It executes on CPU by default and can be switched to GPU (CUDA) execution
@@ -239,7 +240,7 @@ Multipart form request.
 
 | Field   | Type   | Required | Description                                              |
 | ------- | ------ | -------- | --------------------------------------------------------- |
-| `game`  | string | yes      | One of `VALORANT`, `LOL`, `CODM`, `MLBB` (case-insensitive). Only `VALORANT` and `LOL` currently return usable results — see [Notes and known limitations](#notes-and-known-limitations). |
+| `game`  | string | yes      | One of `VALORANT`, `LOL`, `CODM`, `MLBB` (case-insensitive). |
 | `image` | file   | yes      | The scoreboard screenshot. Must have an `image/*` content type. |
 
 Example request (Linux/macOS shell, or Windows PowerShell — `curl` here resolves to
@@ -268,6 +269,9 @@ Example response:
   ]
 }
 ```
+
+`extra` is empty for Valorant, League of Legends and Call of Duty: Mobile. Mobile
+Legends scans also carry the player's gold, as `"extra": { "gold": 12813 }`.
 
 Error responses:
 
@@ -326,16 +330,26 @@ in the form field.
 
 ## Notes and known limitations
 
-- Only Valorant and League of Legends are supported end to end today, in both this
-  service and the `collegium-web` close-match screen it feeds. Call of Duty: Mobile
-  and Mobile Legends are not yet ready:
-  - Mobile Legends (`MLBB`) packs kills, deaths, assists, and gold with no separators
-    in its scoreboard layout, so those numbers are not reliably parsed. MLBB scans
-    currently return no players; organizers enter those stats manually.
-  - Call of Duty: Mobile (`CODM`) is accepted by the API but has not been validated
-    against real CODM scoreboard layouts — treat it as unsupported for now, not as a
-    working integration.
-  Both are left for a later iteration; this is a known gap, not a bug.
+- All four games are parsed end to end, but the two mobile titles work differently
+  from Valorant and League of Legends and carry their own caveats:
+  - Call of Duty: Mobile renders both teams as two tables side by side, so one visual
+    row holds two players. Each `K/D/A` cell is matched to the nearest name to its
+    left rather than to a whole-row cluster, which keeps the two tables apart.
+    Digits the recognizer commonly confuses for letters (`B` for `8`, `O` for `0`,
+    `l` for `1`) are normalized inside `K/D/A` cells.
+  - Mobile Legends prints kills, deaths, assists and gold as bare numbers with no
+    separators, and the text detector merges them into a single box — `7 9 23 14711`
+    comes back as `792314711`, which cannot be split reliably from the string alone.
+    The parser instead crops that box out of the screenshot, splits it on the vertical
+    whitespace gaps between the columns, and re-runs recognition on each column. This
+    means Mobile Legends scans do a second recognition pass and are slower than the
+    other three games. The column order is mirrored per side: the left team reads
+    kills, deaths, assists, gold, and the right team reads gold, kills, deaths,
+    assists.
+- The recognition model is Latin-only. A player whose in-game name is written in
+  another script (Japanese, Korean, Chinese) will come back with that part of the name
+  missing — usually leaving just the team tag. Organizers still confirm or correct
+  every scanned row, so this degrades the pre-fill rather than breaking it.
 - The OCR engine instance is cached process-wide (`lru_cache(maxsize=1)` in
   `app/engine.py`) and is constructed lazily on the first scan request, not at process
   startup — the first request after a cold start will be slower than subsequent ones.
