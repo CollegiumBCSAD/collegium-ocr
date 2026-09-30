@@ -23,9 +23,12 @@ def get_engine():
     return RapidOCR()
 
 
-def run_ocr(image_bytes: bytes):
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    result, _ = get_engine()(np.array(image))
+def load_image(image_bytes: bytes) -> np.ndarray:
+    return np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
+
+
+def run_ocr(image: np.ndarray):
+    result, _ = get_engine()(image)
     items = []
     for entry in result or []:
         box = entry[0]
@@ -33,3 +36,8 @@ def run_ocr(image_bytes: bytes):
         score = entry[2] if len(entry) > 2 else 1.0
         items.append((box, text, score))
     return items
+
+
+def read_text(image: np.ndarray) -> str:
+    result, _ = get_engine()(image, use_det=False, use_cls=False, use_rec=True)
+    return result[0][0] if result else ""

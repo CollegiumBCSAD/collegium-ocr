@@ -76,7 +76,7 @@ def _parse_kda_columns(game, items, tol):
     return players
 
 
-def parse(game: str, items) -> list[ScannedPlayer]:
+def parse(game: str, items, image=None) -> list[ScannedPlayer]:
     game = game.upper()
     if not items:
         return []

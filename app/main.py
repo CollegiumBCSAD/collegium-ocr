@@ -1,7 +1,7 @@
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from .config import USE_GPU
-from .engine import run_ocr
+from .engine import load_image, run_ocr
 from .parsers import GAMES, parse
 from .schemas import ScanResult
 
@@ -31,8 +31,10 @@ async def scan(game: str = Form(...), image: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Uploaded image is empty")
 
     try:
-        items = run_ocr(data)
+        image = load_image(data)
+        items = run_ocr(image)
+        players = parse(normalized, items, image)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"OCR failed: {exc}") from exc
 
-    return ScanResult(game=normalized, players=parse(normalized, items))
+    return ScanResult(game=normalized, players=players)
