@@ -5,13 +5,12 @@ def box(x0, y0, x1, y1):
     return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
 
 
-def test_valorant_uses_leftmost_name():
+def test_valorant_picks_name_above_agent():
     items = [
-        (box(10, 100, 120, 130), "NU Arguelles", 0.99),
-        (box(130, 100, 180, 130), "NEON", 0.9),
-        (box(200, 100, 240, 130), "317", 0.9),
-        (box(260, 100, 330, 130), "18/13/5", 0.95),
-        (box(350, 100, 380, 130), "77", 0.9),
+        (box(335, 325, 451, 352), "NU Arguelles", 0.95),
+        (box(336, 349, 376, 367), "NEON", 0.99),
+        (box(599, 337, 631, 355), "317", 1.0),
+        (box(703, 336, 784, 356), "18/13/5", 0.98),
     ]
     players = parse("VALORANT", items)
     assert len(players) == 1
@@ -40,6 +39,21 @@ def test_team_total_row_is_filtered():
         (box(200, 100, 260, 130), "65,183", 0.9),
     ]
     assert parse("LOL", items) == []
+
+
+def test_codm_splits_side_by_side_tables():
+    items = [
+        (box(258, 326, 354, 360), "ARDE Law", 0.91),
+        (box(428, 326, 476, 360), "MVP", 0.99),
+        (box(297, 373, 369, 402), "400", 0.99),
+        (box(642, 348, 732, 379), "41/20/12", 0.99),
+        (box(1214, 328, 1295, 360), "SY Josh.", 0.95),
+        (box(1596, 346, 1689, 381), "23/32/8", 0.99),
+    ]
+    players = parse("CODM", items)
+    assert [p.ign for p in players] == ["ARDE Law", "SY Josh."]
+    assert (players[0].kills, players[0].deaths, players[0].assists) == (41, 20, 12)
+    assert (players[1].kills, players[1].deaths, players[1].assists) == (23, 32, 8)
 
 
 def test_mlbb_fused_digits_left_for_now():

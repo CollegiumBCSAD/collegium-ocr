@@ -5,82 +5,61 @@ from .schemas import ScannedPlayer
 GAMES = {"VALORANT", "LOL", "CODM", "MLBB"}
 
 KDA_RE = re.compile(r"(\d{1,3})\s*/\s*(\d{1,3})\s*/\s*(\d{1,3})")
-NON_PLAYER_LABELS = {"team1", "team2", "team", "total"}
+NON_PLAYER_LABELS = {"team1", "team2", "team", "total", "mvp"}
+
+
+def _bounds(box):
+    xs = [point[0] for point in box]
+    ys = [point[1] for point in box]
+    return min(xs), min(ys), max(xs), max(ys)
 
 
 def _ycenter(box):
-    return sum(point[1] for point in box) / len(box)
+    _, y0, _, y1 = _bounds(box)
+    return (y0 + y1) / 2
 
 
 def _xleft(box):
-    return min(point[0] for point in box)
+    return _bounds(box)[0]
 
 
 def _has_alpha(text: str) -> bool:
     return any(ch.isalpha() for ch in text)
 
 
+def _is_name(text: str) -> bool:
+    return _has_alpha(text) and text.strip().lower() not in NON_PLAYER_LABELS
+
+
 def _median_line_height(items) -> float:
-    heights = [
-        max(p[1] for p in box) - min(p[1] for p in box) for box, _, _ in items
-    ]
-    heights = sorted(h for h in heights if h > 0)
+    heights = sorted(
+        h for h in (_bounds(box)[3] - _bounds(box)[1] for box, _, _ in items) if h > 0
+    )
     return heights[len(heights) // 2] if heights else 20.0
 
 
-def _cluster_rows(items, tol):
-    ordered = sorted(items, key=lambda it: _ycenter(it[0]))
-    rows, current, center = [], [], None
-    for item in ordered:
-        yc = _ycenter(item[0])
-        if center is None or abs(yc - center) <= tol:
-            current.append(item)
-            center = yc if center is None else (center + yc) / 2
-        else:
-            rows.append(current)
-            current, center = [item], yc
-    if current:
-        rows.append(current)
-    return rows
-
-
-def _pick_ign(row_sorted, kda_idx, game) -> str:
-    left = row_sorted[:kda_idx]
-    alpha = [text for _, text, _ in left if _has_alpha(text)]
-    if game == "LOL":
-        return alpha[-1] if alpha else ""
-    if alpha:
-        return alpha[0]
-    return left[0][1] if left else ""
-
-
-def parse(game: str, items) -> list[ScannedPlayer]:
-    game = game.upper()
-    if not items:
-        return []
-
-    tol = _median_line_height(items) * 0.6
-    players: list[ScannedPlayer] = []
-
-    for row in _cluster_rows(items, tol):
-        row_sorted = sorted(row, key=lambda it: _xleft(it[0]))
-        texts = [text for _, text, _ in row_sorted]
-        joined = " ".join(texts)
-
-        match = KDA_RE.search(joined)
+def _parse_kda_columns(game, items, tol):
+    players = []
+    for box, text, _ in items:
+        match = KDA_RE.search(text)
         if not match:
             continue
-
-        kda_idx = next(
-            (i for i, text in enumerate(texts) if KDA_RE.search(text)), len(texts)
-        )
-        ign = _pick_ign(row_sorted, kda_idx, game).strip()
-        if not _has_alpha(ign) or ign.lower() in NON_PLAYER_LABELS:
+        x0, _, _, _ = _bounds(box)
+        yc = _ycenter(box)
+        names = [
+            (b, t)
+            for b, t, _ in items
+            if _is_name(t) and _xleft(b) < x0 and abs(_ycenter(b) - yc) <= tol
+        ]
+        if not names:
             continue
-
+        if game == "VALORANT":
+            ign = min(names, key=lambda n: _ycenter(n[0]))[1]
+        else:
+            ign = max(names, key=lambda n: _xleft(n[0]))[1]
         players.append(
             ScannedPlayer(
-                ign=ign,
+                ign=ign.strip(),
                 team=None,
                 kills=int(match.group(1)),
                 deaths=int(match.group(2)),
@@ -88,5 +67,13 @@ def parse(game: str, items) -> list[ScannedPlayer]:
                 extra={},
             )
         )
-
     return players
+
+
+def parse(game: str, items) -> list[ScannedPlayer]:
+    game = game.upper()
+    if not items:
+        return []
+
+    ordered = sorted(items, key=lambda it: (_ycenter(it[0]), _xleft(it[0])))
+    return _parse_kda_columns(game, ordered, _median_line_height(items) * 0.8)
