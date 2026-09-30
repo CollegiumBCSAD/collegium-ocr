@@ -1,3 +1,6 @@
+import numpy as np
+
+from app import parsers
 from app.parsers import parse
 
 
@@ -56,11 +59,35 @@ def test_codm_splits_side_by_side_tables():
     assert (players[1].kills, players[1].deaths, players[1].assists) == (23, 32, 8)
 
 
-def test_mlbb_fused_digits_left_for_now():
+def _mlbb_image():
+    image = np.zeros((900, 2048, 3), dtype=np.uint8)
+    for x0, x1 in [(650, 670), (700, 720), (750, 770), (800, 844)]:
+        image[683:710, x0:x1] = 255
+    for x0, x1 in [(1207, 1250), (1290, 1310), (1340, 1360), (1380, 1398)]:
+        image[683:710, x0:x1] = 255
+    return image
+
+
+def test_mlbb_reads_columns_per_side(monkeypatch):
+    reads = iter(["6", "5", "17", "12813", "15502", "12", "7", "7"])
+    monkeypatch.setattr(parsers, "read_text", lambda crop: next(reads))
     items = [
-        (box(10, 100, 120, 130), "LWS drent", 0.9),
-        (box(130, 100, 220, 130), "792314711", 0.9),
+        (box(432, 684, 542, 712), "Apostatis", 0.99),
+        (box(650, 683, 844, 710), "651712813", 0.99),
+        (box(1207, 683, 1398, 710), "155021277", 1.0),
+        (box(1475, 684, 1622, 709), "EnumaElish", 0.99),
     ]
+    left, right = parse("MLBB", items, _mlbb_image())
+    assert left.ign == "Apostatis"
+    assert (left.kills, left.deaths, left.assists) == (6, 5, 17)
+    assert left.extra == {"gold": 12813}
+    assert right.ign == "EnumaElish"
+    assert (right.kills, right.deaths, right.assists) == (12, 7, 7)
+    assert right.extra == {"gold": 15502}
+
+
+def test_mlbb_without_image_returns_nothing():
+    items = [(box(650, 683, 844, 710), "651712813", 0.99)]
     assert parse("MLBB", items) == []
 
 
